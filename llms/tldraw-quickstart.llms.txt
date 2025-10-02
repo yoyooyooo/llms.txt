@@ -1,0 +1,82 @@
+Task: tldraw 画布最小集成 + 快照持久化 + 可切换自定义工具按钮
+
+Environment:
+- node>=18, react>=18, tldraw>=4
+
+Steps (strict):
+1) Install: `npm i tldraw` and import `tldraw/tldraw.css`.
+2) Assets: default CDN works; for self-host use `@tldraw/assets/imports(.vite)` / `@tldraw/assets/urls` / `@tldraw/assets/selfHosted` to build `assetUrls` and pass to `<Tldraw />`.
+3) Render `<Tldraw />` inside a sized wrapper (e.g. fixed+inset:0).
+3) Get `editor` via `onMount` or `useEditor()`.
+4) Persistence: choose one
+   - Auto: `<Tldraw persistenceKey="my-doc" />`
+   - Manual: `getSnapshot(editor.store)` / `loadSnapshot(editor.store, data)`
+5) Add a custom tool button via `overrides.toolbar` to switch to a tool.
+6) (Optional) Collab: deploy tldraw sync (Cloudflare template) + `useSync` store (client/server versions match; register default + custom shapes/bindings on both ends).
+7) Validate DoD.
+
+Minimal example (copy-paste):
+```tsx
+import { Tldraw, useEditor, getSnapshot, loadSnapshot, TLUiOverrides } from 'tldraw'
+import 'tldraw/tldraw.css'
+
+const overrides: TLUiOverrides = {
+  toolbar(editor, tb, { tools }) {
+    const btn = {
+      id: 'select-tool',
+      label: 'Select',
+      icon: 'cursor',
+      onSelect: () => editor.setCurrentTool('select'),
+    }
+    return [btn, ...tb]
+  },
+}
+
+export default function App() {
+  return (
+    <div style={{ position: 'fixed', inset: 0 }}>
+      <Tldraw overrides={overrides} components={{ SharePanel: SnapshotPanel }} />
+    </div>
+  )
+}
+
+function SnapshotPanel() {
+  const editor = useEditor()
+  return (
+    <div style={{ padding: 12, pointerEvents: 'all', display: 'flex', gap: 8 }}>
+      <button onClick={() => {
+        const snap = getSnapshot(editor.store)
+        localStorage.setItem('snapshot', JSON.stringify(snap))
+      }}>保存</button>
+      <button onClick={() => {
+        const raw = localStorage.getItem('snapshot')
+        if (!raw) return
+        loadSnapshot(editor.store, JSON.parse(raw))
+      }}>加载</button>
+    </div>
+  )
+}
+```
+
+DoD:
+- Canvas renders; basic drawing/selection works.
+- Refresh restores data (persistenceKey or snapshot buttons).
+- Custom toolbar button switches tool.
+- (If collab) no update loops; both ends see changes.
+
+Anchors:
+- docs: docs/tldraw/README.md:1, docs/tldraw/AI_GUIDE.md:1
+ - ui overrides: docs/tldraw/guides/ui-overrides.md:1
+
+Refs (URLs):
+- Installation: https://tldraw.dev/installation
+- Basic component: https://tldraw.dev/examples/basic
+- Snapshots: https://tldraw.dev/examples/snapshots
+- loadSnapshot API: https://tldraw.dev/reference/editor/loadSnapshot
+- Store API: https://tldraw.dev/reference/store/Store
+- Sync docs: https://tldraw.dev/docs/sync
+ - Store events: https://tldraw.dev/examples/store-events
+ - Editor options: https://tldraw.dev/examples/custom-options
+ - User interface: https://tldraw.dev/docs/user-interface
+ - Add tool to toolbar: https://tldraw.dev/examples/add-tool-to-toolbar
+ - Editor overview / useEditor: https://tldraw.dev/docs/editor

@@ -1,0 +1,78 @@
+# AI SDK 单元测试（LLMs 清单 · v5）
+
+面向 LLM 的执行清单，指导在 Next.js + TypeScript 项目中为 Vercel AI SDK（v5）编写可靠的单元测试。
+
+## 任务范围
+- 目标：为使用 `streamText/generateObject/streamObject` 的服务器端逻辑与路由封装编写可重复、快速、确定性的单测。
+- 栈：AI SDK v5 · Node >=18 · Next.js (App Router) · Vitest。
+
+## Must / Forbid
+- Must：优先使用 `ai/test` 的 `MockLanguageModelV3` + `simulateReadableStream`。
+- Must：默认使用 UI Message Stream；仅纯文本才使用 Text 流。
+- Forbid：不要直接 `mock fetch`（用 MSW 处理网络层，单测阶段无需出网）。
+
+## 快速步骤（黄金路径）
+1. 安装依赖：`ai @ai-sdk/openai @ai-sdk/react zod vitest`（如报找不到 msw，再添加 `msw` 作为 dev 依赖）。
+2. 在测试中构造 Mock 模型：
+   - `new MockLanguageModelV3({ doStream: async () => ({ stream: simulateReadableStream({ chunks: [...] }) }) })`
+3. 调用 Core API：`const result = streamText({ model, prompt })`
+4. 将结果转为响应：`result.toUIMessageStreamResponse()`（或 `toTextStreamResponse()`）
+5. 读取 `response.body.getReader()`，断言出现 `text-delta` 分片与预期文本；如需，断言 `finishReason/usage`。
+
+## 最小示例（可改写）
+```ts
+import { describe, it, expect } from 'vitest';
+import { streamText, simulateReadableStream } from 'ai';
+import { MockLanguageModelV3 } from 'ai/test';
+
+describe('ai-sdk v5 unit test', () => {
+  it('streams text parts deterministically', async () => {
+    const model = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'text-start', id: 't1' },
+            { type: 'text-delta', id: 't1', delta: 'Hello' },
+            { type: 'text-delta', id: 't1', delta: ' world' },
+            { type: 'text-end', id: 't1' },
+            { type: 'finish', finishReason: 'stop', usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 } },
+          ],
+        }),
+      }),
+    });
+
+    const result = streamText({ model, prompt: 'Hi' });
+    const response = result.toUIMessageStreamResponse();
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let raw = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      raw += decoder.decode(value);
+    }
+    expect(raw).toContain('text-delta');
+    expect(raw).toContain('Hello world');
+  });
+});
+```
+
+## 协议选择（速记）
+- UI Message Stream（推荐）：后端 `toUIMessageStreamResponse()`；SSE + `x-vercel-ai-ui-message-stream: v1`。
+- Text 流：后端 `toTextStreamResponse()`；前端仅文本拼接。
+
+## 锚点（仓库内）
+- 人类文档导航：docs/ai-sdk/README.md:1
+- 协议详解：docs/ai-sdk/stream-protocols.md:1
+- 单测指南：docs/ai-sdk/guides/testing/unit-testing.md:1
+- 策略与金字塔：docs/ai-sdk/guides/testing/intro-and-strategy.md:1
+- 常见坑：docs/ai-sdk/guides/testing/checklist-and-pitfalls.md:1
+- AI 代理执行清单：docs/ai-sdk/AI_GUIDE.md:1
+
+## 参考（URL）
+- Core Testing — https://ai-sdk.dev/docs/ai-sdk-core/testing
+- simulateReadableStream — https://ai-sdk.dev/docs/reference/ai-sdk-core/simulate-readable-stream
+- Stream Protocols — https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
+- Troubleshooting 0:"…" — https://ai-sdk.dev/docs/troubleshooting/strange-stream-output
+

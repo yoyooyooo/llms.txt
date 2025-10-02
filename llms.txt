@@ -1,0 +1,13 @@
+# LLMs Index (Repository)
+
+本仓库提供面向 LLM 的任务速览与规范化入口。请根据主题跳转至专用 llms 清单：
+
+- AI SDK（v5）单元测试（Next.js + TypeScript）：
+  - llms/ai-sdk-unit-testing.llms.txt
+ - tldraw 快速集成与持久化：
+   - llms/tldraw-quickstart.llms.txt
+
+通用规范与更多背景：
+- 根规范（人/AI 协作约定）：AGENTS.md
+- AI SDK 人类文档导航：docs/ai-sdk/README.md
+- tldraw 人类文档导航：docs/tldraw/README.md
